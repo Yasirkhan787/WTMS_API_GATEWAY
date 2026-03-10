@@ -1,0 +1,32 @@
+spring:
+  application:
+    name: api-gateway
+
+server:
+  port: 8762
+
+eureka:
+  instance:
+    prefer-ip-address: true
+  client:
+    service-url:
+      defaultZone: http://localhost:8761/eureka/
+    fetch-registry: true
+    register-with-eureka: true
+
+  cloud:
+    gateway:
+      routes:
+        - id: auth-service
+          uri: lb://AUTH-SERVICE
+          predicates:
+            - Path=/api/v1/auth/**,/api/v1/user/**
+          filters:
+            - AuthFilter
+
+        - id: fleet-service
+          uri: lb://FLEET-SERVICE
+          predicates:
+            - Path=/api/v1/fleet/**
+          filters:
+            - AuthFilter

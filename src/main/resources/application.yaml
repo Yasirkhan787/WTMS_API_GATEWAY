@@ -3,8 +3,10 @@ spring:
     name: api-gateway
 
 server:
-  port: 8762
+  port: 8760
 
+jwt:
+  secret: yK8!pL3@xQ7#dT9$wF2^sR5&vM1*bN6(
 eureka:
   instance:
     prefer-ip-address: true

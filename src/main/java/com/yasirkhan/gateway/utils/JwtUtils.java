@@ -20,36 +20,39 @@ public class JwtUtils {
         this.SECRET = SECRET;
     }
 
-    public Claims validateToken(String token){
+    public Claims validateToken(String token) {
 
-        if (isTokenExpired(token)){
-            throw  new UnauthorizedException("Access Token Expired");
+        if (isTokenExpired(token)) {
+            throw new UnauthorizedException("Access Token Expired");
         }
 
         return extractAllClaims(token);
     }
 
-    public Claims extractAllClaims(String token){
+    public Claims extractAllClaims(String token) {
         return Jwts
                 .parser()
                 .setSigningKey(getSignKey())
                 .build()
                 .parseClaimsJws(token)
                 .getBody();
-
     }
 
-    private <T> T extractClaim(String token, Function<Claims, T> claimResolver){
-        final Claims claims = validateToken(token);
+    private <T> T extractClaim(String token, Function<Claims, T> claimResolver) {
+
+        final Claims claims = extractAllClaims(token);
         return claimResolver.apply(claims);
     }
 
-    private Boolean isTokenExpired(String token){
-        Date expirationDate =
-                extractClaim(token, Claims::getExpiration);
-        return (expirationDate.before(new Date()));
+    private Boolean isTokenExpired(String token) {
+
+        Date expirationDate = extractClaim(token, Claims::getExpiration);
+
+        return expirationDate.before(new Date());
     }
-    private Key getSignKey(){
+
+    private Key getSignKey() {
+
         byte[] key = SECRET.getBytes();
 
         return Keys.hmacShaKeyFor(key);

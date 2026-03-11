@@ -1,67 +1,72 @@
 package com.yasirkhan.gateway.filters;
 
 import com.yasirkhan.gateway.exceptions.TokenNotFoundException;
+import com.yasirkhan.gateway.utils.ExcludedPath;
 import com.yasirkhan.gateway.utils.JwtUtils;
 import io.jsonwebtoken.Claims;
+import org.springframework.cloud.gateway.filter.GatewayFilter;
 import org.springframework.cloud.gateway.filter.GatewayFilterChain;
-import org.springframework.cloud.gateway.filter.GlobalFilter;
-import org.springframework.core.Ordered;
+import org.springframework.cloud.gateway.filter.factory.AbstractGatewayFilterFactory;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.server.reactive.ServerHttpRequest;
 import org.springframework.stereotype.Component;
 import org.springframework.web.server.ServerWebExchange;
-import reactor.core.publisher.Mono;
 
 @Component
-public class AuthFilter implements GlobalFilter, Ordered {
+public class AuthFilter extends AbstractGatewayFilterFactory<AuthFilter.Config> {
 
+    private final ExcludedPath excludedPath;
     private final JwtUtils jwtUtils;
 
-    public AuthFilter(JwtUtils jwtUtils) {
+    public AuthFilter(ExcludedPath excludedPath, JwtUtils jwtUtils) {
+        this.excludedPath = excludedPath;
         this.jwtUtils = jwtUtils;
     }
 
     @Override
-    public Mono<Void> filter(ServerWebExchange exchange, GatewayFilterChain chain) {
+    public GatewayFilter apply(Config config) {
 
-        String path = exchange.getRequest().getURI().getPath();
+        return (ServerWebExchange exchange, GatewayFilterChain chain) -> {
 
-        if (path.contains("/api/auth/login") ||
-                path.contains("/api/auth/refreshToken")) {
-            return chain.filter(exchange);
-        }
+            String path = exchange.getRequest().getURI().getPath();
+            System.out.println("DEBUG: Gateway received request for path: " + path);
 
-        String authHeader = exchange
-                .getRequest()
-                .getHeaders()
-                .getFirst(HttpHeaders.AUTHORIZATION);
+            // Skip authentication for excluded paths
+            if (!excludedPath.predicate.test(exchange.getRequest())) {
+                return chain.filter(exchange);
+            }
 
-        if (authHeader == null || !authHeader.startsWith("Bearer ")) {
-            throw new TokenNotFoundException("Missing Access Token");
-        }
+            String authHeader = exchange
+                    .getRequest()
+                    .getHeaders()
+                    .getFirst(HttpHeaders.AUTHORIZATION);
 
-        String token = authHeader.substring(7);
+            if (authHeader == null || !authHeader.startsWith("Bearer ")) {
+                throw new TokenNotFoundException("Missing Access Token");
+            }
 
-        Claims claims = jwtUtils.validateToken(token);
+            String token = authHeader.substring(7);
 
-        String role = claims.get("role", String.class);
-        String userId = claims.get("userId").toString();
+            Claims claims = jwtUtils.validateToken(token);
 
-        ServerHttpRequest request =
-                exchange.getRequest()
-                        .mutate()
-                        .header("X-User-Id", userId)
-                        .header("X-User-Role", role)
-                        .build();
+            String role = claims.get("role", String.class);
+            String userId = claims.get("userId").toString();
 
-        return chain.filter(
-                exchange.mutate()
-                        .request(request)
-                        .build());
+            ServerHttpRequest request =
+                    exchange.getRequest()
+                            .mutate()
+                            .header("X-User-Id", userId)
+                            .header("X-User-Role", role)
+                            .build();
+
+            return chain.filter(
+                    exchange.mutate()
+                            .request(request)
+                            .build()
+            );
+        };
     }
 
-    @Override
-    public int getOrder() {
-        return -1;
+    public static class Config {
     }
 }

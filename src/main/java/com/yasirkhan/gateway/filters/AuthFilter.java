@@ -1,9 +1,12 @@
 package com.yasirkhan.gateway.filters;
 
 import com.yasirkhan.gateway.exceptions.TokenNotFoundException;
+import com.yasirkhan.gateway.exceptions.UnauthorizedException;
 import com.yasirkhan.gateway.utils.ExcludedPath;
 import com.yasirkhan.gateway.utils.JwtUtils;
 import io.jsonwebtoken.Claims;
+import io.jsonwebtoken.ExpiredJwtException;
+import io.jsonwebtoken.MalformedJwtException;
 import org.springframework.cloud.gateway.filter.GatewayFilter;
 import org.springframework.cloud.gateway.filter.GatewayFilterChain;
 import org.springframework.cloud.gateway.filter.factory.AbstractGatewayFilterFactory;
@@ -19,6 +22,7 @@ public class AuthFilter extends AbstractGatewayFilterFactory<AuthFilter.Config> 
     private final JwtUtils jwtUtils;
 
     public AuthFilter(ExcludedPath excludedPath, JwtUtils jwtUtils) {
+        super(Config.class);
         this.excludedPath = excludedPath;
         this.jwtUtils = jwtUtils;
     }
@@ -47,23 +51,32 @@ public class AuthFilter extends AbstractGatewayFilterFactory<AuthFilter.Config> 
 
             String token = authHeader.substring(7);
 
-            Claims claims = jwtUtils.validateToken(token);
 
-            String role = claims.get("role", String.class);
-            String userId = claims.get("userId").toString();
+            try {
+                Claims claims = jwtUtils.validateToken(token);
 
-            ServerHttpRequest request =
-                    exchange.getRequest()
-                            .mutate()
-                            .header("X-User-Id", userId)
-                            .header("X-User-Role", role)
-                            .build();
+                String role = claims.get("role", String.class);
+                String userId = claims.get("userId").toString();
 
-            return chain.filter(
-                    exchange.mutate()
-                            .request(request)
-                            .build()
-            );
+                ServerHttpRequest request =
+                        exchange.getRequest()
+                                .mutate()
+                                .header("X-User-Id", userId)
+                                .header("X-User-Role", role)
+                                .build();
+
+                return chain.filter(
+                        exchange.mutate()
+                                .request(request)
+                                .build()
+                );
+            } catch (ExpiredJwtException e) {
+                throw new UnauthorizedException(e.getMessage());
+            }catch (MalformedJwtException e) {
+                throw new UnauthorizedException(e.getMessage());
+            }catch (Exception e) {
+                throw new RuntimeException(e);
+            }
         };
     }
 

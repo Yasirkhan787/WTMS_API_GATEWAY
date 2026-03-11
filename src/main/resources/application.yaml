@@ -1,4 +1,4 @@
-git server:
+server:
   port: 8760
 
 spring:

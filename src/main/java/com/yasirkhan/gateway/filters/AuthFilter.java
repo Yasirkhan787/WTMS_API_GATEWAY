@@ -3,83 +3,73 @@ package com.yasirkhan.gateway.filters;
 import com.yasirkhan.gateway.exceptions.TokenNotFoundException;
 import com.yasirkhan.gateway.exceptions.UnauthorizedException;
 import com.yasirkhan.gateway.utils.ExcludedPath;
-import com.yasirkhan.gateway.utils.JwtUtils;
-import io.jsonwebtoken.Claims;
-import io.jsonwebtoken.ExpiredJwtException;
-import io.jsonwebtoken.MalformedJwtException;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.cloud.gateway.filter.GatewayFilter;
-import org.springframework.cloud.gateway.filter.GatewayFilterChain;
 import org.springframework.cloud.gateway.filter.factory.AbstractGatewayFilterFactory;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.server.reactive.ServerHttpRequest;
 import org.springframework.stereotype.Component;
-import org.springframework.web.server.ServerWebExchange;
+import org.springframework.web.reactive.function.client.WebClient;
+import reactor.core.publisher.Mono;
+
+import java.util.Map;
 
 @Component
 public class AuthFilter extends AbstractGatewayFilterFactory<AuthFilter.Config> {
 
     private final ExcludedPath excludedPath;
-    private final JwtUtils jwtUtils;
+    private final WebClient.Builder webClientBuilder;
 
-    public AuthFilter(ExcludedPath excludedPath, JwtUtils jwtUtils) {
+    @Value("${app.security.internal-secret}")
+    private String internalSecret;
+
+    public AuthFilter(ExcludedPath excludedPath, WebClient.Builder webClientBuilder) {
         super(Config.class);
         this.excludedPath = excludedPath;
-        this.jwtUtils = jwtUtils;
+        this.webClientBuilder = webClientBuilder;
     }
 
     @Override
     public GatewayFilter apply(Config config) {
-
-        return (ServerWebExchange exchange, GatewayFilterChain chain) -> {
-
+        return (exchange, chain) -> {
             String path = exchange.getRequest().getURI().getPath();
-            System.out.println("DEBUG: Gateway received request for path: " + path);
 
-            // Skip authentication for excluded paths
-            if (!excludedPath.predicate.test(exchange.getRequest())) {
-                return chain.filter(exchange);
+            System.out.println(path);
+            // If the path is NOT in the excluded list, proceed with security
+            if (excludedPath.predicate.test(exchange.getRequest())) {
+
+                String authHeader = exchange.getRequest().getHeaders().getFirst(HttpHeaders.AUTHORIZATION);
+
+                if (authHeader == null || !authHeader.startsWith("Bearer ")) {
+                    throw new TokenNotFoundException("Missing Access Token");
+                }
+
+                return webClientBuilder.build()
+                        .get()
+                        .uri("http://AUTH-SERVICE/auth/ping")
+                        .header(HttpHeaders.AUTHORIZATION, authHeader)
+                        .retrieve()
+                        .bodyToMono(Map.class)
+                        .flatMap(response -> {
+                            ServerHttpRequest mutatedRequest = exchange.getRequest().mutate()
+                                    .header("X-User-Id", response.get("userId").toString())
+                                    .header("X-Username", response.get("username").toString())
+                                    .header("X-User-Role", response.get("role").toString())
+                                    .header("X-Gateway-Secret", internalSecret)
+                                    .build();
+                            return chain.filter(exchange.mutate().request(mutatedRequest).build());
+                        })
+                        .onErrorResume(e -> Mono.error(new UnauthorizedException("Invalid Token")));
             }
 
-            String authHeader = exchange
-                    .getRequest()
-                    .getHeaders()
-                    .getFirst(HttpHeaders.AUTHORIZATION);
+            // If path is EXCLUDED, still add the secret so service doesn't block it
+            ServerHttpRequest publicRequest = exchange.getRequest().mutate()
+                    .header("X-Gateway-Secret", internalSecret)
+                    .build();
 
-            if (authHeader == null || !authHeader.startsWith("Bearer ")) {
-                throw new TokenNotFoundException("Missing Access Token");
-            }
-
-            String token = authHeader.substring(7);
-
-
-            try {
-                Claims claims = jwtUtils.validateToken(token);
-
-                String role = claims.get("role", String.class);
-                String userId = claims.get("userId").toString();
-
-                ServerHttpRequest request =
-                        exchange.getRequest()
-                                .mutate()
-                                .header("X-User-Id", userId)
-                                .header("X-User-Role", role)
-                                .build();
-
-                return chain.filter(
-                        exchange.mutate()
-                                .request(request)
-                                .build()
-                );
-            } catch (ExpiredJwtException e) {
-                throw new UnauthorizedException(e.getMessage());
-            }catch (MalformedJwtException e) {
-                throw new UnauthorizedException(e.getMessage());
-            }catch (Exception e) {
-                throw new RuntimeException(e);
-            }
+            return chain.filter(exchange.mutate().request(publicRequest).build());
         };
     }
 
-    public static class Config {
-    }
+    public static class Config {}
 }

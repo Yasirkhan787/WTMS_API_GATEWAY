@@ -15,7 +15,11 @@ public class ExcludedPath {
     public static final List<String> endPoints = List.of(
             "/api/v1/auth/login",
             "/api/v1/auth/refreshToken",
-            "/api/v1/user/add"
+            "/api/v1/auth/user/add",
+            "/api/v1/user/v3/api-docs/**",
+            "/api/v1/user/swagger-ui/**",
+            "/api/v1/auth/v3/api-docs/**",
+            "/api/v1/auth/swagger-ui/**"
     );
 
     public Predicate<ServerHttpRequest> predicate = request -> {

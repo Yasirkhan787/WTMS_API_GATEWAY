@@ -13,7 +13,6 @@ spring:
           predicates:
             - Path=/api/v1/auth/**
           filters:
-            - AuthFilter
             - StripPrefix=2
 
         - id: user-service

@@ -7,6 +7,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.cloud.gateway.filter.GatewayFilter;
 import org.springframework.cloud.gateway.filter.factory.AbstractGatewayFilterFactory;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatusCode;
 import org.springframework.http.server.reactive.ServerHttpRequest;
 import org.springframework.stereotype.Component;
 import org.springframework.web.reactive.function.client.WebClient;
@@ -32,16 +33,13 @@ public class AuthFilter extends AbstractGatewayFilterFactory<AuthFilter.Config> 
     @Override
     public GatewayFilter apply(Config config) {
         return (exchange, chain) -> {
-            String path = exchange.getRequest().getURI().getPath();
+            ServerHttpRequest request = exchange.getRequest();
 
-            System.out.println(path);
-            // If the path is NOT in the excluded list, proceed with security
-            if (excludedPath.predicate.test(exchange.getRequest())) {
-
-                String authHeader = exchange.getRequest().getHeaders().getFirst(HttpHeaders.AUTHORIZATION);
+            if (!excludedPath.predicate.test(request)) {
+                String authHeader = request.getHeaders().getFirst(HttpHeaders.AUTHORIZATION);
 
                 if (authHeader == null || !authHeader.startsWith("Bearer ")) {
-                    throw new TokenNotFoundException("Missing Access Token");
+                    return Mono.error(new TokenNotFoundException("Missing Access Token"));
                 }
 
                 return webClientBuilder.build()
@@ -49,6 +47,14 @@ public class AuthFilter extends AbstractGatewayFilterFactory<AuthFilter.Config> 
                         .uri("http://AUTH-SERVICE/auth/ping")
                         .header(HttpHeaders.AUTHORIZATION, authHeader)
                         .retrieve()
+                        .onStatus(HttpStatusCode::isError, clientResponse ->
+                                clientResponse.bodyToMono(Map.class).flatMap(errorBody -> {
+                                    String message =
+                                            errorBody.getOrDefault(
+                                                    "message", "Authentication Failed").toString();
+                                    return Mono.error(new UnauthorizedException(message));
+                                })
+                        )
                         .bodyToMono(Map.class)
                         .flatMap(response -> {
                             ServerHttpRequest mutatedRequest = exchange.getRequest().mutate()
@@ -58,12 +64,10 @@ public class AuthFilter extends AbstractGatewayFilterFactory<AuthFilter.Config> 
                                     .header("X-Gateway-Secret", internalSecret)
                                     .build();
                             return chain.filter(exchange.mutate().request(mutatedRequest).build());
-                        })
-                        .onErrorResume(e -> Mono.error(new UnauthorizedException("Invalid Token")));
+                        });
             }
 
-            // If path is EXCLUDED, still add the secret so service doesn't block it
-            ServerHttpRequest publicRequest = exchange.getRequest().mutate()
+            ServerHttpRequest publicRequest = request.mutate()
                     .header("X-Gateway-Secret", internalSecret)
                     .build();
 

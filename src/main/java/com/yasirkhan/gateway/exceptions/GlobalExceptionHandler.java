@@ -1,44 +1,52 @@
 package com.yasirkhan.gateway.exceptions;
 
-import com.yasirkhan.gateway.responses.ErrorResponse;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import org.springframework.boot.web.reactive.error.ErrorWebExceptionHandler;
+import org.springframework.core.annotation.Order;
+import org.springframework.core.io.buffer.DataBuffer;
 import org.springframework.http.HttpStatus;
-import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.ExceptionHandler;
-import org.springframework.web.bind.annotation.RestControllerAdvice;
-import org.springframework.http.server.reactive.ServerHttpRequest;
+import org.springframework.http.MediaType;
+import org.springframework.stereotype.Component;
+import org.springframework.web.server.ServerWebExchange;
+import reactor.core.publisher.Mono;
 
 import java.time.LocalDateTime;
+import java.util.Map;
 
-@RestControllerAdvice
-public class GlobalExceptionHandler {
+@Component
+@Order(-2) // High priority
+public class GlobalExceptionHandler implements ErrorWebExceptionHandler {
 
-    @ExceptionHandler(UnauthorizedException.class)
-    public ResponseEntity<ErrorResponse> handleUnauthorizedException(UnauthorizedException ex, ServerHttpRequest request){
-        ErrorResponse response =
-                ErrorResponse
-                        .builder()
-                        .message(ex.getMessage())
-                        .status(HttpStatus.UNAUTHORIZED.value())
-                        .timestamp(LocalDateTime.now())
-                        .error("UNAUTHORIZED")
-                        .path(request.getURI().getPath())
-                        .build();
+    private final ObjectMapper objectMapper;
 
-        return new ResponseEntity<>(response, HttpStatus.UNAUTHORIZED);
+    public GlobalExceptionHandler(ObjectMapper objectMapper) {
+        this.objectMapper = objectMapper;
     }
 
-    @ExceptionHandler(TokenNotFoundException.class)
-    public ResponseEntity<ErrorResponse> handleTokenNotFoundException(TokenNotFoundException ex, ServerHttpRequest request){
-        ErrorResponse response =
-                ErrorResponse
-                        .builder()
-                        .message(ex.getMessage())
-                        .status(HttpStatus.NOT_FOUND.value())
-                        .timestamp(LocalDateTime.now())
-                        .error("NOT FOUND")
-                        .path(request.getURI().getPath())
-                        .build();
+    @Override
+    public Mono<Void> handle(ServerWebExchange exchange, Throwable ex) {
+        HttpStatus status = HttpStatus.INTERNAL_SERVER_ERROR;
 
-        return new ResponseEntity<>(response, HttpStatus.NOT_FOUND);
+        if (ex instanceof UnauthorizedException) status = HttpStatus.UNAUTHORIZED;
+        else if (ex instanceof TokenNotFoundException) status = HttpStatus.NOT_FOUND;
+
+        exchange.getResponse().setStatusCode(status);
+        exchange.getResponse().getHeaders().setContentType(MediaType.APPLICATION_JSON);
+
+        Map<String, Object> errorDetails = Map.of(
+                "timestamp", LocalDateTime.now().toString(),
+                "status", status.value(),
+                "error", status.getReasonPhrase(),
+                "message", ex.getMessage(),
+                "path", exchange.getRequest().getPath().value()
+        );
+
+        try {
+            byte[] bytes = objectMapper.writeValueAsBytes(errorDetails);
+            DataBuffer buffer = exchange.getResponse().bufferFactory().wrap(bytes);
+            return exchange.getResponse().writeWith(Mono.just(buffer));
+        } catch (Exception e) {
+            return Mono.error(e);
+        }
     }
 }

@@ -35,7 +35,7 @@ public class AuthFilter extends AbstractGatewayFilterFactory<AuthFilter.Config> 
         return (exchange, chain) -> {
             ServerHttpRequest request = exchange.getRequest();
 
-            if (!excludedPath.predicate.test(request)) {
+            if (excludedPath.predicate.test(request)) {
                 String authHeader = request.getHeaders().getFirst(HttpHeaders.AUTHORIZATION);
 
                 if (authHeader == null || !authHeader.startsWith("Bearer ")) {

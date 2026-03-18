@@ -13,10 +13,13 @@ public class ExcludedPath {
     private final AntPathMatcher antPathMatcher = new AntPathMatcher();
 
     public static final List<String> endPoints = List.of(
-            "/api/v1/user/v3/api-docs/**",
-            "/api/v1/user/swagger-ui/**",
-            "/api/v1/auth/v3/api-docs/**",
-            "/api/v1/auth/swagger-ui/**"
+            "/auth/login",
+            "/auth/refresh",
+            "/auth/ping",
+            "/user/v3/api-docs/**",
+            "/user/swagger-ui/**",
+            "/auth/v3/api-docs/**",
+            "/auth/swagger-ui/**"
     );
 
     public Predicate<ServerHttpRequest> predicate = request -> {

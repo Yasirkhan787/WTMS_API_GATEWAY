@@ -13,6 +13,7 @@ public class ExcludedPath {
     private final AntPathMatcher antPathMatcher = new AntPathMatcher();
 
     public static final List<String> endPoints = List.of(
+            "/auth/user/add",   //testing
             "/auth/login",
             "/auth/refresh",
             "/auth/ping",

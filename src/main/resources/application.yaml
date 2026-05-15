@@ -33,6 +33,15 @@ spring:
             - AuthFilter
             - StripPrefix=2
 
+        # Route for Notification Service
+        - id: notification-service
+          uri: lb://NOTIFICATION-SERVICE
+          predicates:
+            - Path=/api/v1/notification/**
+          filters:
+            - AuthFilter
+            - StripPrefix=2
+
 eureka:
   instance:
     prefer-ip-address: true

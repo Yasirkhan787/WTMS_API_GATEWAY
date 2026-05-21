@@ -7,7 +7,7 @@ spring:
 
   cloud:
     gateway:
-      webflux:
+      routes:
         - id: auth-service
           uri: lb://AUTH-SERVICE
           predicates:

@@ -17,7 +17,7 @@ public class InternalSecurityFilter implements GlobalFilter, Ordered {
 
     @Override
     public Mono<Void> filter(ServerWebExchange exchange, GatewayFilterChain chain) {
-        // Add the secret header to the request being forwarded
+
         ServerHttpRequest request = exchange.getRequest().mutate()
                 .header("X-Gateway-Secret", GATEWAY_SECRET)
                 .build();
@@ -27,6 +27,6 @@ public class InternalSecurityFilter implements GlobalFilter, Ordered {
 
     @Override
     public int getOrder() {
-        return -1; // Run this early in the filter chain
+        return -1;
     }
 }

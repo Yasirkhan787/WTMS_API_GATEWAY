@@ -4,6 +4,11 @@ server:
 spring:
   application:
     name: api-gateway
+  data:
+    redis:
+      host: localhost
+      port: 6379
+      database: 0
 
   cloud:
     gateway:
@@ -21,26 +26,32 @@ spring:
           predicates:
             - Path=/api/v1/user/**
           filters:
-            - AuthFilter
             - StripPrefix=2
+            - AuthFilter
 
-        # Route for Fleet Service
         - id: fleet-service
           uri: lb://FLEET-SERVICE
           predicates:
             - Path=/api/v1/fleet/**
           filters:
-            - AuthFilter
             - StripPrefix=2
+            - AuthFilter
 
-        # Route for Notification Service
+        - id: schedule-service
+          uri: lb://SCHEDULE-SERVICE
+          predicates:
+            - Path=/api/v1/schedule/**
+          filters:
+            - StripPrefix=2
+            - AuthFilter
+
         - id: notification-service
           uri: lb://NOTIFICATION-SERVICE
           predicates:
             - Path=/api/v1/notification/**
           filters:
-            - AuthFilter
             - StripPrefix=2
+            - AuthFilter
 
 eureka:
   instance:
@@ -56,4 +67,5 @@ app:
     internal-secret: yK8!pL3@xQ7#dT9$wF2^sR5&vM1*bN6(
 
 jwt:
-  secret: yK8!pL3@xQ7#dT9$wF2^sR5&vM1*bN6(
+  public-key:
+    path: classpath:certs/public_key.pem

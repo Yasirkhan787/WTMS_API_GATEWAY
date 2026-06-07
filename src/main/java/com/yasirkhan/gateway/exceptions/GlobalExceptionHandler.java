@@ -15,7 +15,7 @@ import java.time.LocalDateTime;
 import java.util.Map;
 
 @Component
-@Order(-2) // High priority
+@Order(-2)
 public class GlobalExceptionHandler implements ErrorWebExceptionHandler {
 
     private final ObjectMapper objectMapper;
@@ -30,6 +30,8 @@ public class GlobalExceptionHandler implements ErrorWebExceptionHandler {
 
         if (ex instanceof UnauthorizedException) status = HttpStatus.UNAUTHORIZED;
         else if (ex instanceof TokenNotFoundException) status = HttpStatus.NOT_FOUND;
+        else if (ex instanceof ServiceUnavailableException) status = HttpStatus.SERVICE_UNAVAILABLE;
+        else if (ex instanceof SessionExpiredException) status = HttpStatus.UNAUTHORIZED;
 
         exchange.getResponse().setStatusCode(status);
         exchange.getResponse().getHeaders().setContentType(MediaType.APPLICATION_JSON);

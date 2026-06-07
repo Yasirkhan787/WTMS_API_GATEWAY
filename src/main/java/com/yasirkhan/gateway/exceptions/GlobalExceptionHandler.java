@@ -31,7 +31,7 @@ public class GlobalExceptionHandler implements ErrorWebExceptionHandler {
         if (ex instanceof UnauthorizedException) status = HttpStatus.UNAUTHORIZED;
         else if (ex instanceof TokenNotFoundException) status = HttpStatus.NOT_FOUND;
         else if (ex instanceof ServiceUnavailableException) status = HttpStatus.SERVICE_UNAVAILABLE;
-        else if (ex instanceof SessionExpiredException) status = HttpStatus.UNAUTHORIZED;
+        else if (ex instanceof SessionExpiredException) status = HttpStatus.FORBIDDEN;
 
         exchange.getResponse().setStatusCode(status);
         exchange.getResponse().getHeaders().setContentType(MediaType.APPLICATION_JSON);

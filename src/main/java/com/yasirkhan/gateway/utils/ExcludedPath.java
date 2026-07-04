@@ -17,6 +17,8 @@ public class ExcludedPath {
             "/auth/login",
             "/auth/refresh",
             "/auth/ping",
+            "/auth/user/forget-password",
+            "/auth/user/reset-password",
             "/user/v3/api-docs/**",
             "/user/swagger-ui/**",
             "/auth/v3/api-docs/**",
